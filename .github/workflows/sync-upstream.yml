@@ -1,0 +1,44 @@
+name: Sync upstream
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '7 * * * *'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: sync-upstream-master
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Install validation dependencies
+        run: sudo apt-get update && sudo apt-get install -y gettext gnome-shell
+      - name: Merge upstream changes
+        run: |
+          git config user.name 'blur-my-shell automation'
+          git config user.email 'mcc45tr@gmail.com'
+          git remote add upstream https://github.com/aunetx/blur-my-shell.git
+          git fetch upstream master
+          git merge --no-edit upstream/master
+      - name: Validate GNOME 51 build
+        run: |
+          make build
+          unzip -t build/blur-my-shell@aunetx.shell-extension.zip >/dev/null
+          unzip -p build/blur-my-shell@aunetx.shell-extension.zip metadata.json \
+            | jq -e '."shell-version" | index("51")' >/dev/null
+          find src -name '*.js' -type f -print0 | xargs -0 -n1 node --check
+      - name: Push when changed
+        run: |
+          if git diff --quiet origin/master...HEAD; then
+            echo 'Fork is already current.'
+            exit 0
+          fi
+          git push origin HEAD:master
