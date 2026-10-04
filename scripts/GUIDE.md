@@ -50,6 +50,14 @@ sudo dnf install gnome-rounded-blur
 ```
 
 **Note:**
+- If you want to install this library via the script on Fedora (useful if you are using experimental version of Fedora), use the following command
+```
+curl https://raw.githubusercontent.com/aunetx/blur-my-shell/refs/heads/master/scripts/rounded_blur_build.sh | bash -s -- -i -f
+```
+  - Fedora 45 (GNOME 51) users may want to use the command below (once upstream merges this patch, use the command above or install via the copr)
+```
+curl https://raw.githubusercontent.com/aunetx/blur-my-shell/refs/heads/master/scripts/rounded_blur_build.sh | bash -s -- -i -f -e
+```
 - Fedora Atomic user may want to manually add the copr by downloading the copr `.repo` from [here](https://copr.fedorainfracloud.org/coprs/aneagle/gnome-rounded-blur/) and copy the file into `/etc/yum.repos.d/`, then use the following command to refresh the metadata
 ```
 sudo rpm-ostree refresh-md --force 
@@ -64,7 +72,7 @@ rpm-ostree install gnome-rounded-blur
 
 You can visit the original repo [here](https://github.com/kancko/gnome-rounded-blur) for guide on how to build the library yourself. Do keep in mind that
 
-- In order to build the library, you will need to install the following dependencies: `libglib2.0-dev build-essential libmutter-14-dev gobject-introspection`, do note that these are Ubuntu / Debian packages name so you will need to find the equivalent of these in the distro you are using.
+- In order to build the library, you will need to install the following dependencies: `libglib2.0-dev build-essential gobject-introspection meson`, plus the `libmutter-<N>-dev` package matching the Mutter API version used by your GNOME Shell (for example `libmutter-18-dev` on GNOME 50, `libmutter-17-dev` on GNOME 49, `libmutter-16-dev` on GNOME 48). Do note that these are Ubuntu / Debian package names, so you will need to find the equivalent of these in the distro you are using.
 - By default, meson will install the library to `/usr/local`, it's best to install it into a directory using `meson install -C build --destdir <custom_directory>` and then copy it to `/usr` later.
 
 ### Acknowledgments
