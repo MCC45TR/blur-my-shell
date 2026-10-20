@@ -41,6 +41,7 @@ export const PanelBlur = class PanelBlur {
 
         this._log("blurring top panel");
         this.enabled = true;
+        this._dirty = false;
         this.watched_panels = new WeakSet();
         this._in_overview = Main.overview.visible;
         this.discovery.enable();
@@ -50,12 +51,15 @@ export const PanelBlur = class PanelBlur {
 
         this.connect_to_windows_and_overview();
 
-        // the panels only have their new geometry once the work areas are updated
-        this._dirty = false;
-        this.connections.connect(Main.layoutManager, 'monitors-changed',
-            _ => this._dirty = true
-        );
+        this.connections.connect(Main.layoutManager, 'monitors-changed', () => {
+            this._dirty = true;
+            // static backgrounds must not query a monitor that has just disappeared
+            [...this.actors_list]
+                .filter(actors => actors.static_blur)
+                .forEach(actors => this.destroy_blur(actors));
+        });
 
+        // the panels only have their new geometry once the work areas are updated
         this.connections.connect(global.display, 'workareas-changed', _ => {
             if (this._dirty) {
                 this.reset();
@@ -84,6 +88,9 @@ export const PanelBlur = class PanelBlur {
 
     /// Blur a panel only if it is not already blurred (contained in the list)
     maybe_blur_panel(panel) {
+        if (this._dirty)
+            return;
+
         if (!this.watched_panels.has(panel)) {
             this.watched_panels.add(panel);
             this.connections.connect(panel, 'parent-set', () => {
@@ -213,8 +220,19 @@ export const PanelBlur = class PanelBlur {
     /// Hides the blur while in the overview, if the preferences say so.
     connect_to_overview() {
         this._in_overview = Main.overview.visible;
-        if (!this.settings.panel.UNBLUR_IN_OVERVIEW)
+        if (!this.settings.panel.UNBLUR_IN_OVERVIEW) {
+            if (this.settings.panel.MATCH_THEME_IN_OVERVIEW) {
+                this.window_connections.connect(Main.overview, ['showing', 'shown'], () => {
+                    this._in_overview = true;
+                    this.update_light_text();
+                });
+                this.window_connections.connect(Main.overview, 'hidden', () => {
+                    this._in_overview = false;
+                    this.update_light_text();
+                });
+            }
             return;
+        }
 
         const entered = () => {
             this._in_overview = true;
@@ -470,7 +488,12 @@ export const PanelBlur = class PanelBlur {
     }
 
     update_light_text() {
-        update_light_text(this.actors_list, this.settings.panel.FORCE_LIGHT_TEXT);
+        update_light_text(
+            this.actors_list,
+            this.settings.panel.FORCE_LIGHT_TEXT,
+            this.settings.panel.MATCH_THEME_IN_OVERVIEW,
+            this.in_overview()
+        );
     }
 
     panel_hide_blur_startup() {
@@ -527,6 +550,7 @@ export const PanelBlur = class PanelBlur {
         actors.signal_records = [];
 
         actors.widgets.panel_box.remove_style_class_name("panel-light-text");
+        actors.widgets.panel_box.remove_style_class_name("bms-panel-overview-light-theme");
         set_panel_style_class(actors, null, this.settings);
 
         actors.rounded_pipeline?.destroy();
@@ -538,11 +562,6 @@ export const PanelBlur = class PanelBlur {
     }
 
     disable() {
-        if (!this.enabled) {
-            this._log("blur already removed");
-            return;
-        }
-
         this._log("removing blur from top panel");
 
         this.disconnect_from_windows_and_overview();
